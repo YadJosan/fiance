@@ -128,6 +128,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin routes for group management
+  app.post("/api/admin/groups", isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const group = await storage.createGroup(req.body, adminId);
+      res.json(group);
+    } catch (error) {
+      console.error("Error creating group:", error);
+      res.status(500).json({ message: "Failed to create group" });
+    }
+  });
+
+  app.get("/api/admin/groups", isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const groups = await storage.getGroupsByAdmin(adminId);
+      res.json(groups);
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+      res.status(500).json({ message: "Failed to fetch groups" });
+    }
+  });
+
+  app.get("/api/admin/groups/:groupId/members", isAuthenticated, async (req: any, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId);
+      const members = await storage.getGroupMembers(groupId);
+      res.json(members);
+    } catch (error) {
+      console.error("Error fetching group members:", error);
+      res.status(500).json({ message: "Failed to fetch group members" });
+    }
+  });
+
+  app.post("/api/admin/groups/:groupId/members", isAuthenticated, async (req: any, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId);
+      const { email, canAddExpense } = req.body;
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const userGroup = await storage.addUserToGroup(user.id, groupId, canAddExpense);
+      res.json(userGroup);
+    } catch (error) {
+      console.error("Error adding user to group:", error);
+      res.status(500).json({ message: "Failed to add user to group" });
+    }
+  });
+
+  app.delete("/api/admin/groups/:groupId/members/:userId", isAuthenticated, async (req: any, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId);
+      const userId = req.params.userId;
+      
+      const success = await storage.removeUserFromGroup(userId, groupId);
+      if (success) {
+        res.json({ message: "User removed from group" });
+      } else {
+        res.status(404).json({ message: "User not found in group" });
+      }
+    } catch (error) {
+      console.error("Error removing user from group:", error);
+      res.status(500).json({ message: "Failed to remove user from group" });
+    }
+  });
+
   // Get all transactions for authenticated user
   app.get("/api/transactions", isAuthenticated, async (req: any, res) => {
     try {

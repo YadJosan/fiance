@@ -204,7 +204,7 @@ export class DatabaseStorage implements IStorage {
       .values({
         ...insertTransaction,
         userId,
-        groupId: groupId || null,
+        groupId: groupId ?? null,
       })
       .returning();
     return transaction;
