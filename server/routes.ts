@@ -1,33 +1,52 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertTransactionSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Get all transactions
-  app.get("/api/transactions", async (req, res) => {
+  // Auth middleware
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const transactions = await storage.getTransactions();
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Get all transactions for authenticated user
+  app.get("/api/transactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const transactions = await storage.getTransactions(userId);
       res.json(transactions);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch transactions" });
     }
   });
 
-  // Get balance summary
-  app.get("/api/balance", async (req, res) => {
+  // Get balance summary for authenticated user
+  app.get("/api/balance", isAuthenticated, async (req: any, res) => {
     try {
-      const balance = await storage.getBalance();
+      const userId = req.user.claims.sub;
+      const balance = await storage.getBalance(userId);
       res.json(balance);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch balance" });
     }
   });
 
-  // Create a new transaction
-  app.post("/api/transactions", async (req, res) => {
+  // Create a new transaction for authenticated user
+  app.post("/api/transactions", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validation = insertTransactionSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json({ 
@@ -36,15 +55,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const transaction = await storage.createTransaction(validation.data);
+      const transaction = await storage.createTransaction(validation.data, userId);
       res.status(201).json(transaction);
     } catch (error) {
       res.status(500).json({ message: "Failed to create transaction" });
     }
   });
 
-  // Delete a transaction
-  app.delete("/api/transactions/:id", async (req, res) => {
+  // Delete a transaction for authenticated user
+  app.delete("/api/transactions/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -62,19 +81,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get category spending analysis
-  app.get("/api/category-spending", async (req, res) => {
+  // Get category spending analysis for authenticated user
+  app.get("/api/category-spending", isAuthenticated, async (req: any, res) => {
     try {
-      const categorySpending = await storage.getCategorySpending();
+      const userId = req.user.claims.sub;
+      const categorySpending = await storage.getCategorySpending(userId);
       res.json(categorySpending);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch category spending" });
     }
   });
 
-  // Get transactions by date range
-  app.get("/api/transactions/range", async (req, res) => {
+  // Get transactions by date range for authenticated user
+  app.get("/api/transactions/range", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { startDate, endDate } = req.query;
       
       if (!startDate || !endDate) {
@@ -88,7 +109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid date format" });
       }
 
-      const transactions = await storage.getTransactionsByDateRange(start, end);
+      const transactions = await storage.getTransactionsByDateRange(start, end, userId);
       res.json(transactions);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch transactions by date range" });

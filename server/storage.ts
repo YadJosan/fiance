@@ -1,100 +1,103 @@
-import { transactions, type Transaction, type InsertTransaction, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@shared/schema";
+import {
+  transactions,
+  users,
+  type Transaction,
+  type InsertTransaction,
+  type User,
+  type UpsertUser,
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+} from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
+// Interface for storage operations
 export interface IStorage {
-  getTransactions(): Promise<Transaction[]>;
+  // User operations
+  // (IMPORTANT) these user operations are mandatory for Replit Auth.
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
+  // Transaction operations
+  getTransactions(userId: string): Promise<Transaction[]>;
   getTransactionById(id: number): Promise<Transaction | undefined>;
-  createTransaction(transaction: InsertTransaction): Promise<Transaction>;
+  createTransaction(transaction: InsertTransaction, userId: string): Promise<Transaction>;
   deleteTransaction(id: number): Promise<boolean>;
-  getBalance(): Promise<{ balance: number; income: number; expenses: number }>;
-  getTransactionsByDateRange(startDate: Date, endDate: Date): Promise<Transaction[]>;
-  getTransactionsByCategory(category: string): Promise<Transaction[]>;
-  getCategorySpending(): Promise<Array<{ category: string; amount: number; percentage: number }>>;
+  getBalance(userId: string): Promise<{ balance: number; income: number; expenses: number }>;
+  getTransactionsByDateRange(startDate: Date, endDate: Date, userId: string): Promise<Transaction[]>;
+  getTransactionsByCategory(category: string, userId: string): Promise<Transaction[]>;
+  getCategorySpending(userId: string): Promise<Array<{ category: string; amount: number; percentage: number }>>;
 }
 
-export class MemStorage implements IStorage {
-  private transactions: Map<number, Transaction>;
-  private currentId: number;
-
-  constructor() {
-    this.transactions = new Map();
-    this.currentId = 1;
-    
-    // Initialize with some sample data for demonstration
-    this.seedData();
+export class DatabaseStorage implements IStorage {
+  // User operations
+  // (IMPORTANT) these user operations are mandatory for Replit Auth.
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
-  private async seedData() {
-    const sampleTransactions: Omit<Transaction, 'id'>[] = [
-      {
-        type: "income",
-        amount: "3200.00",
-        category: "Salary",
-        description: "Monthly salary",
-        date: new Date(Date.now() - 24 * 60 * 60 * 1000) // Yesterday
-      },
-      {
-        type: "expense",
-        amount: "4.50",
-        category: "Food & Dining",
-        description: "Coffee Shop",
-        date: new Date()
-      },
-      {
-        type: "expense",
-        amount: "42.80",
-        category: "Transportation",
-        description: "Gas Station", 
-        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
-      },
-      {
-        type: "expense",
-        amount: "127.45",
-        category: "Shopping",
-        description: "Grocery Store",
-        date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-      }
-    ];
-
-    for (const transaction of sampleTransactions) {
-      const id = this.currentId++;
-      const fullTransaction: Transaction = { ...transaction, id };
-      this.transactions.set(id, fullTransaction);
-    }
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
   }
 
-  async getTransactions(): Promise<Transaction[]> {
-    return Array.from(this.transactions.values()).sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+  // Transaction operations
+  async getTransactions(userId: string): Promise<Transaction[]> {
+    return await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.userId, userId))
+      .orderBy((transactions) => transactions.date);
   }
 
   async getTransactionById(id: number): Promise<Transaction | undefined> {
-    return this.transactions.get(id);
+    const [transaction] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.id, id));
+    return transaction;
   }
 
-  async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
-    const id = this.currentId++;
-    const transaction: Transaction = {
-      ...insertTransaction,
-      id,
-      date: new Date(),
-    };
-    this.transactions.set(id, transaction);
+  async createTransaction(insertTransaction: InsertTransaction, userId: string): Promise<Transaction> {
+    const [transaction] = await db
+      .insert(transactions)
+      .values({
+        ...insertTransaction,
+        userId,
+      })
+      .returning();
     return transaction;
   }
 
   async deleteTransaction(id: number): Promise<boolean> {
-    return this.transactions.delete(id);
+    const result = await db
+      .delete(transactions)
+      .where(eq(transactions.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
-  async getBalance(): Promise<{ balance: number; income: number; expenses: number }> {
-    const transactions = Array.from(this.transactions.values());
+  async getBalance(userId: string): Promise<{ balance: number; income: number; expenses: number }> {
+    const userTransactions = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.userId, userId));
     
-    const income = transactions
+    const income = userTransactions
       .filter(t => t.type === "income")
       .reduce((sum, t) => sum + parseFloat(t.amount), 0);
       
-    const expenses = transactions
+    const expenses = userTransactions
       .filter(t => t.type === "expense")
       .reduce((sum, t) => sum + parseFloat(t.amount), 0);
       
@@ -103,20 +106,27 @@ export class MemStorage implements IStorage {
     return { balance, income, expenses };
   }
 
-  async getTransactionsByDateRange(startDate: Date, endDate: Date): Promise<Transaction[]> {
-    return Array.from(this.transactions.values()).filter(
-      t => new Date(t.date) >= startDate && new Date(t.date) <= endDate
-    );
+  async getTransactionsByDateRange(startDate: Date, endDate: Date, userId: string): Promise<Transaction[]> {
+    return await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.userId, userId));
   }
 
-  async getTransactionsByCategory(category: string): Promise<Transaction[]> {
-    return Array.from(this.transactions.values()).filter(
-      t => t.category === category
-    );
+  async getTransactionsByCategory(category: string, userId: string): Promise<Transaction[]> {
+    return await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.userId, userId));
   }
 
-  async getCategorySpending(): Promise<Array<{ category: string; amount: number; percentage: number }>> {
-    const expenses = Array.from(this.transactions.values()).filter(t => t.type === "expense");
+  async getCategorySpending(userId: string): Promise<Array<{ category: string; amount: number; percentage: number }>> {
+    const userTransactions = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.userId, userId));
+      
+    const expenses = userTransactions.filter(t => t.type === "expense");
     const totalExpenses = expenses.reduce((sum, t) => sum + parseFloat(t.amount), 0);
     
     const categoryTotals = new Map<string, number>();
@@ -136,4 +146,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
