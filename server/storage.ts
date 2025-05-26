@@ -34,6 +34,11 @@ export interface IStorage {
     password: string;
   }): Promise<User>;
   
+  // Admin operations
+  makeUserAdmin(userId: string): Promise<boolean>;
+  removeAdminRole(userId: string): Promise<boolean>;
+  getAllAdmins(): Promise<User[]>;
+  
   // Group operations
   createGroup(groupData: InsertGroup, adminId: string): Promise<Group>;
   getGroupsByAdmin(adminId: string): Promise<Group[]>;

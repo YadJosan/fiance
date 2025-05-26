@@ -128,8 +128,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin routes for group management
-  app.post("/api/admin/groups", isAuthenticated, async (req: any, res) => {
+  // Check if user is admin middleware
+  const requireAdmin = async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      next();
+    } catch (error) {
+      res.status(500).json({ message: "Authorization check failed" });
+    }
+  };
+
+  // Admin routes for group management (only admins can create groups)
+  app.post("/api/admin/groups", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
       const adminId = req.user.claims.sub;
       const group = await storage.createGroup(req.body, adminId);
@@ -140,7 +154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/admin/groups", isAuthenticated, async (req: any, res) => {
+  app.get("/api/admin/groups", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
       const adminId = req.user.claims.sub;
       const groups = await storage.getGroupsByAdmin(adminId);
@@ -148,6 +162,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching groups:", error);
       res.status(500).json({ message: "Failed to fetch groups" });
+    }
+  });
+
+  // Make user admin route
+  app.post("/api/admin/users/:userId/make-admin", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const userId = req.params.userId;
+      const success = await storage.makeUserAdmin(userId);
+      if (success) {
+        res.json({ message: "User made admin successfully" });
+      } else {
+        res.status(404).json({ message: "User not found" });
+      }
+    } catch (error) {
+      console.error("Error making user admin:", error);
+      res.status(500).json({ message: "Failed to make user admin" });
+    }
+  });
+
+  // Get all admins
+  app.get("/api/admin/admins", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const admins = await storage.getAllAdmins();
+      res.json(admins);
+    } catch (error) {
+      console.error("Error fetching admins:", error);
+      res.status(500).json({ message: "Failed to fetch admins" });
     }
   });
 

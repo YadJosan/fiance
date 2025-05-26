@@ -26,6 +26,10 @@ const addUserSchema = z.object({
   canAddExpense: z.boolean().default(false),
 });
 
+const makeAdminSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+});
+
 type GroupFormData = z.infer<typeof groupSchema>;
 type AddUserFormData = z.infer<typeof addUserSchema>;
 
