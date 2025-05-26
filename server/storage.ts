@@ -18,6 +18,17 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   
+  // Additional user operations for email/phone auth
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByPhone(phone: string): Promise<User | undefined>;
+  createUser(userData: {
+    firstName: string;
+    lastName: string;
+    email?: string | null;
+    phone?: string | null;
+    password: string;
+  }): Promise<User>;
+  
   // Transaction operations
   getTransactions(userId: string): Promise<Transaction[]>;
   getTransactionById(id: number): Promise<Transaction | undefined>;
@@ -47,6 +58,41 @@ export class DatabaseStorage implements IStorage {
           ...userData,
           updatedAt: new Date(),
         },
+      })
+      .returning();
+    return user;
+  }
+
+  // Additional user operations for email/phone auth
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByPhone(phone: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.phone, phone));
+    return user;
+  }
+
+  async createUser(userData: {
+    firstName: string;
+    lastName: string;
+    email?: string | null;
+    phone?: string | null;
+    password: string;
+  }): Promise<User> {
+    // Generate a unique ID for the user
+    const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const [user] = await db
+      .insert(users)
+      .values({
+        id,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        email: userData.email,
+        phone: userData.phone,
+        password: userData.password,
       })
       .returning();
     return user;
