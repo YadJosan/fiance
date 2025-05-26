@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, PlusCircle, MinusCircle, User } from "lucide-react";
+import { Plus, PlusCircle, MinusCircle, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddFundsModal from "@/components/AddFundsModal";
 import AddExpenseModal from "@/components/AddExpenseModal";
 import { formatCurrency, formatDate, getCategoryIcon, getCategoryColor } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 import type { Transaction } from "@shared/schema";
 
 interface BalanceData {
@@ -24,6 +25,7 @@ interface CategorySpending {
 export default function Dashboard() {
   const [showFundsModal, setShowFundsModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const { user } = useAuth();
 
   const { data: balance, isLoading: balanceLoading } = useQuery<BalanceData>({
     queryKey: ["/api/balance"],
@@ -46,14 +48,15 @@ export default function Dashboard() {
         <div className="flex justify-between items-start mb-6">
           <div>
             <h1 className="text-lg font-semibold">Good morning,</h1>
-            <p className="text-blue-100">User</p>
+            <p className="text-blue-100">{(user as any)?.firstName || (user as any)?.email || 'User'}</p>
           </div>
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => window.location.href = '/api/logout'}
             className="w-10 h-10 bg-white bg-opacity-20 rounded-full p-0 hover:bg-white hover:bg-opacity-30"
           >
-            <User className="h-4 w-4" />
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
 
