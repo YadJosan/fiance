@@ -1,15 +1,20 @@
 import {
   transactions,
   users,
+  groups,
+  userGroups,
   type Transaction,
   type InsertTransaction,
   type User,
   type UpsertUser,
+  type Group,
+  type InsertGroup,
+  type UserGroup,
   EXPENSE_CATEGORIES,
   INCOME_CATEGORIES,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -29,12 +34,23 @@ export interface IStorage {
     password: string;
   }): Promise<User>;
   
+  // Group operations
+  createGroup(groupData: InsertGroup, adminId: string): Promise<Group>;
+  getGroupsByAdmin(adminId: string): Promise<Group[]>;
+  getGroupsByUser(userId: string): Promise<Group[]>;
+  addUserToGroup(userId: string, groupId: number, canAddExpense: boolean): Promise<UserGroup>;
+  removeUserFromGroup(userId: string, groupId: number): Promise<boolean>;
+  updateUserGroupPermission(userId: string, groupId: number, canAddExpense: boolean): Promise<boolean>;
+  getUserGroupPermission(userId: string, groupId: number): Promise<UserGroup | undefined>;
+  
   // Transaction operations
   getTransactions(userId: string): Promise<Transaction[]>;
+  getGroupTransactions(groupId: number): Promise<Transaction[]>;
   getTransactionById(id: number): Promise<Transaction | undefined>;
-  createTransaction(transaction: InsertTransaction, userId: string): Promise<Transaction>;
+  createTransaction(transaction: InsertTransaction, userId: string, groupId?: number): Promise<Transaction>;
   deleteTransaction(id: number): Promise<boolean>;
   getBalance(userId: string): Promise<{ balance: number; income: number; expenses: number }>;
+  getGroupBalance(groupId: number): Promise<{ balance: number; income: number; expenses: number }>;
   getTransactionsByDateRange(startDate: Date, endDate: Date, userId: string): Promise<Transaction[]>;
   getTransactionsByCategory(category: string, userId: string): Promise<Transaction[]>;
   getCategorySpending(userId: string): Promise<Array<{ category: string; amount: number; percentage: number }>>;
@@ -115,15 +131,109 @@ export class DatabaseStorage implements IStorage {
     return transaction;
   }
 
-  async createTransaction(insertTransaction: InsertTransaction, userId: string): Promise<Transaction> {
+  // Group operations
+  async createGroup(groupData: InsertGroup, adminId: string): Promise<Group> {
+    const [group] = await db
+      .insert(groups)
+      .values({
+        ...groupData,
+        adminId,
+      })
+      .returning();
+    return group;
+  }
+
+  async getGroupsByAdmin(adminId: string): Promise<Group[]> {
+    return await db.select().from(groups).where(eq(groups.adminId, adminId));
+  }
+
+  async getGroupsByUser(userId: string): Promise<Group[]> {
+    return await db
+      .select({
+        id: groups.id,
+        name: groups.name,
+        description: groups.description,
+        adminId: groups.adminId,
+        createdAt: groups.createdAt,
+        updatedAt: groups.updatedAt,
+      })
+      .from(groups)
+      .innerJoin(userGroups, eq(groups.id, userGroups.groupId))
+      .where(eq(userGroups.userId, userId));
+  }
+
+  async addUserToGroup(userId: string, groupId: number, canAddExpense: boolean): Promise<UserGroup> {
+    const [userGroup] = await db
+      .insert(userGroups)
+      .values({
+        userId,
+        groupId,
+        canAddExpense: canAddExpense ? "true" : "false",
+      })
+      .returning();
+    return userGroup;
+  }
+
+  async removeUserFromGroup(userId: string, groupId: number): Promise<boolean> {
+    const result = await db
+      .delete(userGroups)
+      .where(and(eq(userGroups.userId, userId), eq(userGroups.groupId, groupId)));
+    return (result.rowCount || 0) > 0;
+  }
+
+  async updateUserGroupPermission(userId: string, groupId: number, canAddExpense: boolean): Promise<boolean> {
+    const result = await db
+      .update(userGroups)
+      .set({ canAddExpense: canAddExpense ? "true" : "false" })
+      .where(and(eq(userGroups.userId, userId), eq(userGroups.groupId, groupId)));
+    return (result.rowCount || 0) > 0;
+  }
+
+  async getUserGroupPermission(userId: string, groupId: number): Promise<UserGroup | undefined> {
+    const [userGroup] = await db
+      .select()
+      .from(userGroups)
+      .where(and(eq(userGroups.userId, userId), eq(userGroups.groupId, groupId)));
+    return userGroup;
+  }
+
+  async createTransaction(insertTransaction: InsertTransaction, userId: string, groupId?: number): Promise<Transaction> {
     const [transaction] = await db
       .insert(transactions)
       .values({
         ...insertTransaction,
         userId,
+        groupId: groupId || null,
       })
       .returning();
     return transaction;
+  }
+
+  async getGroupTransactions(groupId: number): Promise<Transaction[]> {
+    return await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.groupId, groupId))
+      .orderBy((transactions) => transactions.date);
+  }
+
+  async getGroupBalance(groupId: number): Promise<{ balance: number; income: number; expenses: number }> {
+    const groupTransactions = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.groupId, groupId));
+    
+    const income = groupTransactions
+      .filter(t => t.type === "income")
+      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      
+    const expenses = groupTransactions
+      .filter(t => t.type === "expense")
+      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      
+    const balance = income - expenses;
+    
+    return { balance, income, expenses };
   }
 
   async deleteTransaction(id: number): Promise<boolean> {
