@@ -42,6 +42,7 @@ export interface IStorage {
   removeUserFromGroup(userId: string, groupId: number): Promise<boolean>;
   updateUserGroupPermission(userId: string, groupId: number, canAddExpense: boolean): Promise<boolean>;
   getUserGroupPermission(userId: string, groupId: number): Promise<UserGroup | undefined>;
+  getGroupMembers(groupId: number): Promise<Array<{ id: string; firstName: string; lastName: string; email: string; canAddExpense: boolean }>>;
   
   // Transaction operations
   getTransactions(userId: string): Promise<Transaction[]>;
@@ -234,6 +235,25 @@ export class DatabaseStorage implements IStorage {
     const balance = income - expenses;
     
     return { balance, income, expenses };
+  }
+
+  async getGroupMembers(groupId: number): Promise<Array<{ id: string; firstName: string; lastName: string; email: string; canAddExpense: boolean }>> {
+    const members = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        canAddExpense: userGroups.canAddExpense,
+      })
+      .from(users)
+      .innerJoin(userGroups, eq(users.id, userGroups.userId))
+      .where(eq(userGroups.groupId, groupId));
+
+    return members.map(member => ({
+      ...member,
+      canAddExpense: member.canAddExpense === "true"
+    }));
   }
 
   async deleteTransaction(id: number): Promise<boolean> {

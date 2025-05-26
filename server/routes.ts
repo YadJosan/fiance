@@ -223,6 +223,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin routes - Group management
+  app.post("/api/admin/groups", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const groupSchema = z.object({
+        name: z.string().min(2),
+        description: z.string().optional(),
+      });
+
+      const validation = groupSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid group data",
+          errors: validation.error.errors 
+        });
+      }
+
+      const group = await storage.createGroup(validation.data, userId);
+      res.status(201).json(group);
+    } catch (error) {
+      console.error("Create group error:", error);
+      res.status(500).json({ message: "Failed to create group" });
+    }
+  });
+
+  app.get("/api/admin/groups", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const groups = await storage.getGroupsByAdmin(userId);
+      res.json(groups);
+    } catch (error) {
+      console.error("Get groups error:", error);
+      res.status(500).json({ message: "Failed to fetch groups" });
+    }
+  });
+
+  app.post("/api/admin/groups/:groupId/members", isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const groupId = parseInt(req.params.groupId);
+      const { email, canAddExpense } = req.body;
+
+      const user = await storage.getUser(adminId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      // Find user by email
+      const targetUser = await storage.getUserByEmail(email);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const userGroup = await storage.addUserToGroup(targetUser.id, groupId, canAddExpense);
+      res.status(201).json(userGroup);
+    } catch (error) {
+      console.error("Add user to group error:", error);
+      res.status(500).json({ message: "Failed to add user to group" });
+    }
+  });
+
+  app.delete("/api/admin/groups/:groupId/members/:userId", isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const groupId = parseInt(req.params.groupId);
+      const userId = req.params.userId;
+
+      const user = await storage.getUser(adminId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const removed = await storage.removeUserFromGroup(userId, groupId);
+      if (!removed) {
+        return res.status(404).json({ message: "User not found in group" });
+      }
+
+      res.json({ message: "User removed from group successfully" });
+    } catch (error) {
+      console.error("Remove user from group error:", error);
+      res.status(500).json({ message: "Failed to remove user from group" });
+    }
+  });
+
+  app.get("/api/admin/groups/:groupId/members", isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const groupId = parseInt(req.params.groupId);
+
+      const user = await storage.getUser(adminId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const members = await storage.getGroupMembers(groupId);
+      res.json(members);
+    } catch (error) {
+      console.error("Get group members error:", error);
+      res.status(500).json({ message: "Failed to fetch group members" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

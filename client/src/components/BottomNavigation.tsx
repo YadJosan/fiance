@@ -1,18 +1,20 @@
 import { useLocation } from "wouter";
-import { Home, List, BarChart3, Settings } from "lucide-react";
+import { Home, List, BarChart3, Settings, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 interface NavItem {
   path: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
+  adminOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
   { path: "/", icon: Home, label: "Home" },
   { path: "/transactions", icon: List, label: "Transactions" },
   { path: "/reports", icon: BarChart3, label: "Reports" },
-  { path: "/settings", icon: Settings, label: "Settings" },
+  { path: "/admin", icon: Shield, label: "Admin", adminOnly: true },
 ];
 
 export default function BottomNavigation() {
