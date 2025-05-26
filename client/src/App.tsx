@@ -8,6 +8,7 @@ import Dashboard from "@/pages/dashboard";
 import Transactions from "@/pages/transactions";
 import Reports from "@/pages/reports";
 import Landing from "@/pages/landing";
+import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import BottomNavigation from "@/components/BottomNavigation";
 
@@ -18,7 +19,10 @@ function Router() {
     <div className="relative">
       <Switch>
         {isLoading || !isAuthenticated ? (
-          <Route path="/" component={Landing} />
+          <>
+            <Route path="/" component={Landing} />
+            <Route path="/login" component={Login} />
+          </>
         ) : (
           <>
             <Route path="/" component={Dashboard} />

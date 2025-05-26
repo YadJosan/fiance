@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Wallet, TrendingUp, BarChart3, Shield } from "lucide-react";
+import { Wallet, TrendingUp, BarChart3, Shield, ArrowRight } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Landing() {
   return (
@@ -66,12 +67,12 @@ export default function Landing() {
 
         {/* Login Button */}
         <div className="space-y-4">
-          <Button
-            onClick={() => window.location.href = '/api/login'}
-            className="w-full bg-primary hover:bg-primary/90 text-white p-4 h-auto rounded-xl font-semibold text-lg touch-button"
-          >
-            Get Started
-          </Button>
+          <Link href="/login">
+            <Button className="w-full bg-primary hover:bg-primary/90 text-white p-4 h-auto rounded-xl font-semibold text-lg touch-button group">
+              <span>Get Started</span>
+              <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Button>
+          </Link>
           
           <p className="text-xs text-gray-500 text-center">
             By continuing, you agree to our terms of service and privacy policy
