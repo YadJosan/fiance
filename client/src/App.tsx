@@ -9,6 +9,7 @@ import Transactions from "@/pages/transactions";
 import Reports from "@/pages/reports";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
+import Signup from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 import BottomNavigation from "@/components/BottomNavigation";
 
@@ -22,6 +23,7 @@ function Router() {
           <>
             <Route path="/" component={Landing} />
             <Route path="/login" component={Login} />
+            <Route path="/signup" component={Signup} />
           </>
         ) : (
           <>

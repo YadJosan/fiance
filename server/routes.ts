@@ -4,10 +4,117 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertTransactionSchema } from "@shared/schema";
 import { z } from "zod";
+import bcrypt from "bcrypt";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
+
+  // Signup route
+  app.post('/api/auth/signup', async (req, res) => {
+    try {
+      const signupSchema = z.object({
+        firstName: z.string().min(2, "First name must be at least 2 characters"),
+        lastName: z.string().min(2, "Last name must be at least 2 characters"),
+        email: z.string().email().optional(),
+        phone: z.string().min(10).optional(),
+        password: z.string().min(6, "Password must be at least 6 characters"),
+        signupMethod: z.enum(["email", "phone"]),
+      });
+
+      const validation = signupSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid signup data",
+          errors: validation.error.errors 
+        });
+      }
+
+      const { firstName, lastName, email, phone, password, signupMethod } = validation.data;
+
+      // Check if user already exists
+      const existingUser = signupMethod === "email" 
+        ? await storage.getUserByEmail(email!)
+        : await storage.getUserByPhone(phone!);
+
+      if (existingUser) {
+        return res.status(409).json({ 
+          message: `User with this ${signupMethod} already exists` 
+        });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create user
+      const newUser = await storage.createUser({
+        firstName,
+        lastName,
+        email: signupMethod === "email" ? email : null,
+        phone: signupMethod === "phone" ? phone : null,
+        password: hashedPassword,
+      });
+
+      // Remove password from response
+      const { password: _, ...userResponse } = newUser;
+      
+      res.status(201).json({
+        message: "Account created successfully",
+        user: userResponse
+      });
+    } catch (error) {
+      console.error("Signup error:", error);
+      res.status(500).json({ message: "Failed to create account" });
+    }
+  });
+
+  // Login route for email/phone authentication
+  app.post('/api/auth/signin', async (req, res) => {
+    try {
+      const signinSchema = z.object({
+        email: z.string().optional(),
+        phone: z.string().optional(),
+        password: z.string().min(6),
+        signinMethod: z.enum(["email", "phone"]),
+      });
+
+      const validation = signinSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid signin data",
+          errors: validation.error.errors 
+        });
+      }
+
+      const { email, phone, password, signinMethod } = validation.data;
+
+      // Find user
+      const user = signinMethod === "email" 
+        ? await storage.getUserByEmail(email!)
+        : await storage.getUserByPhone(phone!);
+
+      if (!user) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Remove password from response
+      const { password: _, ...userResponse } = user;
+      
+      res.json({
+        message: "Signed in successfully",
+        user: userResponse
+      });
+    } catch (error) {
+      console.error("Signin error:", error);
+      res.status(500).json({ message: "Failed to sign in" });
+    }
+  });
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {

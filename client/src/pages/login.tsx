@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Wallet, Mail, Phone, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Link } from "wouter";
 
 const emailSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -268,12 +269,9 @@ export default function Login() {
             <div className="text-center pt-6">
               <p className="text-xs text-gray-500">
                 Don't have an account?{" "}
-                <button 
-                  onClick={() => window.location.href = '/'}
-                  className="text-primary hover:underline font-medium"
-                >
-                  Learn more
-                </button>
+                <Link href="/signup" className="text-primary hover:underline font-medium">
+                  Sign up here
+                </Link>
               </p>
             </div>
           </CardContent>

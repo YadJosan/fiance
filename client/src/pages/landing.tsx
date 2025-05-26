@@ -77,6 +77,15 @@ export default function Landing() {
           <p className="text-xs text-gray-500 text-center">
             By continuing, you agree to our terms of service and privacy policy
           </p>
+          
+          <div className="text-center pt-2">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{" "}
+              <Link href="/signup" className="text-primary hover:underline font-medium">
+                Sign up here
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
